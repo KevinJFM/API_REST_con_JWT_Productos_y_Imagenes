@@ -146,15 +146,15 @@ Crear un archivo `.env` en la raíz del proyecto:
 
 ```env
 # Servidor
-PORT=3000
+PORT=
 NODE_ENV=development
 
 # Base de datos
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
+DB_HOST=
+DB_PORT=
+DB_USER=
 DB_PASSWORD=tu_password
-DB_NAME=tienda
+DB_NAME=
 
 # JWT
 JWT_SECRET=tu_clave_secreta_muy_segura
