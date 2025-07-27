@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 
-// Middleware JWT optimizado con mejor rendimiento
+// Middleware JWT 
 module.exports = (roleIds = []) => {
     return (req, res, next) => {
         const token = req.headers['authorization']?.split(' ')[1];
