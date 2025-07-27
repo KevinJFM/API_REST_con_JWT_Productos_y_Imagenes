@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Productos - Sistema de Tienda</title>
+    <link rel="stylesheet" href="/styles/common.css">
+    <link rel="stylesheet" href="/styles/product.css">
+    <link rel="stylesheet" href="/styles/admin.css">
+
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Sistema de Tienda</h1>
+        </header>
+
+        <div id="loading" class="loading">Cargando productos...</div>
+
+        <div id="error" class="error" style="display: none;">
+            Error al cargar productos. Por favor intenta nuevamente.
+        </div>
+
+        <div id="productsContainer" style="display: none;">
+            <div class="user-card">
+                <h2>Gestión de Productos</h2>
+                
+                <!-- Formulario para crear productos -->
+                <div class="upload-section">
+                    <h3>Crear Nuevo Producto</h3>
+                    <form id="productForm" enctype="multipart/form-data">
+                        <div class="product-form-grid">
+                            <div class="form-group">
+                                <label for="productName">Nombre del Producto:</label>
+                                <input type="text" id="productName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="productPrice">Precio:</label>
+                                <input type="number" id="productPrice" step="0.01" min="0" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="imageType">Tipo de Imagen:</label>
+                                <select id="imageType" required>
+                                    <option value="">Seleccionar tipo...</option>
+                                    <option value="upload">Subir archivo</option>
+                                    <option value="url">URL externa</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="fileUploadGroup" style="display: none;">
+                                <label for="imageFile">Archivo de Imagen:</label>
+                                <input type="file" id="imageFile" accept="image/*">
+                            </div>
+                            <div class="form-group" id="urlInputGroup" style="display: none;">
+                                <label for="imageUrl">URL de Imagen:</label>
+                                <input type="url" id="imageUrl" placeholder="https://ejemplo.com/imagen.jpg">
+                            </div>
+                            <div class="form-group full-width">
+                                <button type="submit" class="btn btn-primary">Crear Producto</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Vista de catálogo de productos -->
+                <div class="products-catalog">
+                    <h3>Catálogo de Productos</h3>
+                    <div id="productCount" class="pet-count">Mostrando 0 productos</div>
+
+                    <ul id="productsResult" class="pet-list">
+                        <!-- Products will be inserted here -->
+                    </ul>
+
+                    <nav>
+                        <ul id="pagination" class="pagination">
+                            <!-- Pagination will be inserted here -->
+                        </ul>
+                    </nav>
+                </div>
+
+                <!-- Vista de tabla de productos -->
+                <div class="users-table-container">
+                    <table id="productsTable" class="users-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Imagen</th>
+                                <th>Nombre</th>
+                                <th>Precio</th>
+                                <th>Tipo Imagen</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsTableBody">
+                            <!-- Products will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="emptyProducts" class="empty-list" style="display: none;">
+                    No se encontraron productos.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/axios.min.js"></script>
+    <script src="/components/navbar.js"></script>
+    <script>
+        // Insertar el navbar
+        insertNavbar();
+
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const productsContainer = document.getElementById('productsContainer');
+        const productsResult = document.getElementById('productsResult');
+        const productsTableBody = document.getElementById('productsTableBody');
+        const productForm = document.getElementById('productForm');
+        const pagination = document.getElementById('pagination');
+        const emptyProducts = document.getElementById('emptyProducts');
+        const productCount = document.getElementById('productCount');
+        const imageType = document.getElementById('imageType');
+        const fileUploadGroup = document.getElementById('fileUploadGroup');
+        const urlInputGroup = document.getElementById('urlInputGroup');
+
+        const token = localStorage.getItem('token');
+
+        if (!token) {
+            window.location.href = "/login";
+        }
+
+        let PAGE = 1;
+        let LIMIT = 5;
+
+        // Function to format price
+        const formatPrice = (price) => {
+            return new Intl.NumberFormat('es-ES', {
+                style: 'currency',
+                currency: 'EUR'
+            }).format(price);
+        };
+
+        // Manejar cambio de tipo de imagen
+        imageType.addEventListener('change', function() {
+            const selectedType = this.value;
+            
+            if (selectedType === 'upload') {
+                fileUploadGroup.style.display = 'block';
+                urlInputGroup.style.display = 'none';
+                document.getElementById('imageFile').required = true;
+                document.getElementById('imageUrl').required = false;
+            } else if (selectedType === 'url') {
+                fileUploadGroup.style.display = 'none';
+                urlInputGroup.style.display = 'block';
+                document.getElementById('imageFile').required = false;
+                document.getElementById('imageUrl').required = true;
+            } else {
+                fileUploadGroup.style.display = 'none';
+                urlInputGroup.style.display = 'none';
+                document.getElementById('imageFile').required = false;
+                document.getElementById('imageUrl').required = false;
+            }
+        });
+
+        const getProducts = async (url = `/api/v1/products?limit=${LIMIT}&page=${PAGE}`) => {
+            try {
+                loading.style.display = 'block';
+                productsContainer.style.display = 'none';
+                error.style.display = 'none';
+
+                const { data } = await axios.get(url, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    }
+                });
+
+                const { total, data: products } = data;
+
+                if (!products || products.length === 0) {
+                    loading.style.display = 'none';
+                    productsContainer.style.display = 'block';
+                    emptyProducts.style.display = 'block';
+                    productCount.textContent = 'No se encontraron productos';
+                    return;
+                }
+
+                // Limpiar ambas vistas
+                productsResult.innerHTML = '';
+                productsTableBody.innerHTML = '';
+
+                products.forEach((product) => {
+                    // Vista de catálogo (lista)
+                    const li = document.createElement('li');
+                    li.className = 'pet-item';
+
+                    const productInfo = document.createElement('div');
+                    productInfo.className = 'pet-info';
+
+                    // Imagen del producto
+                    const imageContainer = document.createElement('div');
+                    imageContainer.className = 'pet-avatar product-image';
+                    
+                    if (product.imagen_url) {
+                        const img = document.createElement('img');
+                        img.src = product.imagen_url;
+                        img.alt = product.nombre;
+                        img.onerror = function() {
+                            this.style.display = 'none';
+                            imageContainer.textContent = '📦';
+                        };
+                        imageContainer.appendChild(img);
+                    } else {
+                        imageContainer.textContent = '📦';
+                    }
+                    
+                    productInfo.appendChild(imageContainer);
+
+                    const details = document.createElement('div');
+                    details.className = 'pet-details';
+
+                    const name = document.createElement('div');
+                    name.className = 'pet-name';
+                    name.textContent = product.nombre;
+                    details.appendChild(name);
+
+                    const price = document.createElement('div');
+                    price.className = 'pet-species product-price';
+                    price.textContent = formatPrice(product.precio);
+                    details.appendChild(price);
+
+                    const imageTypeInfo = document.createElement('div');
+                    imageTypeInfo.className = 'pet-id';
+                    imageTypeInfo.textContent = `ID: ${product.pid} | Imagen: ${product.imagen_tipo || 'Sin imagen'}`;
+                    details.appendChild(imageTypeInfo);
+
+                    productInfo.appendChild(details);
+                    li.appendChild(productInfo);
+                    productsResult.appendChild(li);
+
+                    // Vista de tabla
+                    const row = document.createElement('tr');
+                    const imageCell = document.createElement('td');
+                    
+                    if (product.imagen_url) {
+                        const img = document.createElement('img');
+                        img.src = product.imagen_url;
+                        img.alt = product.nombre;
+                        img.style.width = '50px';
+                        img.style.height = '50px';
+                        img.style.objectFit = 'cover';
+                        img.style.borderRadius = '4px';
+                        img.onerror = function() {
+                            this.style.display = 'none';
+                            imageCell.textContent = '📦';
+                        };
+                        imageCell.appendChild(img);
+                    } else {
+                        imageCell.textContent = '📦';
+                    }
+
+                    row.innerHTML = `
+                        <td>${product.pid}</td>
+                        <td></td>
+                        <td>${product.nombre}</td>
+                        <td>${formatPrice(product.precio)}</td>
+                        <td><span class="image-type-badge ${product.imagen_tipo}">${product.imagen_tipo || 'Sin imagen'}</span></td>
+                        <td>
+                            <button class="btn btn-danger btn-sm" onclick="deleteProduct(${product.pid})">
+                                Eliminar
+                            </button>
+                        </td>
+                    `;
+
+                    // Insertar la imagen en la celda correspondiente
+                    row.cells[1].appendChild(imageCell.firstChild || document.createTextNode('📦'));
+                    productsTableBody.appendChild(row);
+                });
+
+                // Update product count
+                productCount.textContent = `Mostrando ${products.length} de ${total} productos`;
+
+                // Create pagination (simplified)
+                const totalPages = Math.ceil(total / LIMIT);
+                createPagination({
+                    count: total,
+                    currentPage: PAGE,
+                    limit: LIMIT,
+                    totalPages: totalPages,
+                    nextPage: PAGE < totalPages ? `/api/v1/products?limit=${LIMIT}&page=${PAGE + 1}` : null,
+                    prevPage: PAGE > 1 ? `/api/v1/products?limit=${LIMIT}&page=${PAGE - 1}` : null
+                });
+
+                // Show products container
+                loading.style.display = 'none';
+                productsContainer.style.display = 'block';
+                emptyProducts.style.display = 'none';
+
+            } catch (error) {
+                // console.log(error);
+                loading.style.display = 'none';
+
+                if (error.response && error.response.status === 401) {
+                    alert('Tu sesión ha expirado. Por favor inicia sesión nuevamente.');
+                    localStorage.removeItem('token');
+                    window.location.href = "/login";
+                } else {
+                    productsContainer.style.display = 'none';
+                    document.getElementById('error').textContent = 'Error al cargar productos. Por favor intenta nuevamente.';
+                    document.getElementById('error').style.display = 'block';
+                }
+            }
+        };
+
+        const deleteProduct = async (productId) => {
+            if (!confirm("¿Estás seguro de que quieres eliminar este producto?")) {
+                return;
+            }
+
+            try {
+                await axios.delete(`/api/v1/products/${productId}`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+
+                alert('Producto eliminado exitosamente');
+                getProducts(); // Recargar la lista
+            } catch (error) {
+                // console.log(error);
+                alert('Error al eliminar producto');
+            }
+        };
+
+        const changePage = page => {
+            PAGE = page;
+            getProducts();
+        };
+
+        const createPagination = ({ count, currentPage, limit, nextPage, prevPage, totalPages }) => {
+            pagination.innerHTML = '';
+
+            // Previous button
+            const prevItem = document.createElement('li');
+            prevItem.className = `page-item ${!prevPage ? 'disabled' : ''}`;
+
+            const prevLink = document.createElement('button');
+            prevLink.className = 'page-link';
+            prevLink.textContent = 'Previous';
+            if (prevPage) {
+                prevLink.addEventListener('click', () => getProducts(prevPage));
+            }
+
+            prevItem.appendChild(prevLink);
+            pagination.appendChild(prevItem);
+
+            // Page numbers
+            for (let i = 1; i <= totalPages; i++) {
+                const pageItem = document.createElement('li');
+                pageItem.className = `page-item ${i === currentPage ? 'active' : ''}`;
+
+                const pageLink = document.createElement('button');
+                pageLink.className = 'page-link';
+                pageLink.textContent = i;
+                pageLink.addEventListener('click', () => changePage(i));
+
+                pageItem.appendChild(pageLink);
+                pagination.appendChild(pageItem);
+            }
+
+            // Next button
+            const nextItem = document.createElement('li');
+            nextItem.className = `page-item ${!nextPage ? 'disabled' : ''}`;
+
+            const nextLink = document.createElement('button');
+            nextLink.className = 'page-link';
+            nextLink.textContent = 'Next';
+            if (nextPage) {
+                nextLink.addEventListener('click', () => getProducts(nextPage));
+            }
+
+            nextItem.appendChild(nextLink);
+            pagination.appendChild(nextItem);
+        };
+
+        // Manejar creación de producto
+        productForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const productName = document.getElementById('productName').value;
+            const productPrice = document.getElementById('productPrice').value;
+            const selectedImageType = document.getElementById('imageType').value;
+
+            if (!productName || !productPrice) {
+                alert('Por favor completa todos los campos requeridos');
+                return;
+            }
+
+            try {
+                const submitBtn = productForm.querySelector('button[type="submit"]');
+                submitBtn.textContent = 'Creando...';
+                submitBtn.disabled = true;
+
+                let requestData;
+                let headers = {
+                    Authorization: `Bearer ${token}`
+                };
+
+                if (selectedImageType === 'upload') {
+                    const imageFile = document.getElementById('imageFile').files[0];
+                    if (!imageFile) {
+                        alert('Por favor selecciona un archivo de imagen');
+                        return;
+                    }
+
+                    requestData = new FormData();
+                    requestData.append('nombre', productName);
+                    requestData.append('precio', productPrice);
+                    requestData.append('imagen', imageFile);
+
+                } else if (selectedImageType === 'url') {
+                    const imageUrl = document.getElementById('imageUrl').value;
+                    if (!imageUrl) {
+                        alert('Por favor ingresa una URL de imagen');
+                        return;
+                    }
+
+                    requestData = {
+                        nombre: productName,
+                        precio: parseFloat(productPrice),
+                        imagen_url: imageUrl,
+                        imagen_tipo: 'url'
+                    };
+                    headers['Content-Type'] = 'application/json';
+
+                } else {
+                    requestData = {
+                        nombre: productName,
+                        precio: parseFloat(productPrice)
+                    };
+                    headers['Content-Type'] = 'application/json';
+                }
+
+                await axios.post('/api/v1/products', requestData, { headers });
+
+                alert('Producto creado exitosamente');
+                productForm.reset();
+                imageType.dispatchEvent(new Event('change')); // Reset form visibility
+                getProducts(); // Recargar la lista
+
+            } catch (error) {
+                // console.log(error);
+                alert('Error al crear producto: ' + (error.response?.data?.error || error.message));
+            } finally {
+                const submitBtn = productForm.querySelector('button[type="submit"]');
+                submitBtn.textContent = 'Crear Producto';
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Initial load
+        getProducts();
+    </script>
+</body>
+
+</html>

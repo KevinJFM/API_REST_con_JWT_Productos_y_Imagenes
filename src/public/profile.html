@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Perfil - Sistema de Tienda</title>
+    <link rel="stylesheet" href="/styles/common.css">
+    <link rel="stylesheet" href="/styles/profile.css">
+
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Mi Perfil</h1>
+        </header>
+
+        <div id="loading" class="loading">Cargando perfil...</div>
+        
+        <div id="error" class="error" style="display: none;">
+            Error al cargar el perfil.
+        </div>
+
+        <div id="profileContainer" style="display: none;">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        <span id="userAvatar">👤</span>
+                    </div>
+                    <div class="profile-title">
+                        <h2 id="userName">Cargando...</h2>
+                        <p id="userEmail">email@ejemplo.com</p>
+                        <span id="userRole" class="role-badge">Usuario</span>
+                    </div>
+                </div>
+                
+                <div class="profile-info">
+                    <div class="info-group">
+                        <span class="info-label">Rol en el sistema:</span>
+                        <div class="info-value" id="roleDescription">Usuario del sistema</div>
+                    </div>
+                    <div class="info-group">
+                        <span class="info-label">Acceso disponible:</span>
+                        <div class="info-value" id="accessLevel">Gestión de productos</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/axios.min.js"></script>
+    <script src="/components/navbar.js"></script>
+    <script>
+        // Insertar el navbar
+        insertNavbar();
+
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+            window.location.href = "/login";
+        }
+
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const profileContainer = document.getElementById('profileContainer');
+
+        // Función para obtener el rol en texto
+        const getRoleName = (roleId) => {
+            switch (roleId) {
+                case 1: return 'Administrador';
+                case 2: return 'Vendedor';
+                default: return 'Usuario';
+            }
+        };
+
+        // Función para obtener el avatar según el rol
+        const getRoleAvatar = (roleId) => {
+            switch (roleId) {
+                case 1: return '👑'; // Admin
+                case 2: return '💼'; // Vendedor
+                default: return '👤'; // Usuario
+            }
+        };
+
+        // Función para obtener descripción del rol
+        const getRoleDescription = (roleId) => {
+            switch (roleId) {
+                case 1: return 'Administrador del sistema con acceso completo';
+                case 2: return 'Vendedor con acceso a gestión de productos';
+                default: return 'Usuario del sistema';
+            }
+        };
+
+        // Función para obtener nivel de acceso
+        const getAccessLevel = (roleId) => {
+            switch (roleId) {
+                case 1: return 'Gestión completa: usuarios, productos y configuración';
+                case 2: return 'Gestión de productos y ventas';
+                default: return 'Acceso básico al sistema';
+            }
+        };
+
+        // Load user profile
+        const loadProfile = () => {
+            try {
+                // Decode token to get user info
+                const tokenData = JSON.parse(atob(token.split('.')[1]));
+                
+                // Actualizar información del usuario
+                document.getElementById('userName').textContent = tokenData.user_name || 'Usuario';
+                document.getElementById('userEmail').textContent = tokenData.email;
+                document.getElementById('userAvatar').textContent = getRoleAvatar(tokenData.role_id);
+                
+                const roleElement = document.getElementById('userRole');
+                roleElement.textContent = getRoleName(tokenData.role_id);
+                roleElement.className = `role-badge role-${tokenData.role_id}`;
+
+                // Actualizar descripciones
+                document.getElementById('roleDescription').textContent = getRoleDescription(tokenData.role_id);
+                document.getElementById('accessLevel').textContent = getAccessLevel(tokenData.role_id);
+                
+                loading.style.display = 'none';
+                profileContainer.style.display = 'block';
+            } catch (err) {
+                // console.error(err);
+                loading.style.display = 'none';
+                error.style.display = 'block';
+            }
+        };
+
+        loadProfile();
+    </script>
+</body>
+</html>

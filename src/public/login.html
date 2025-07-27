@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Sesión - Sistema de Productos</title>
+    <link rel="stylesheet" href="/styles/login.css">
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-icon"></div>
+        <h1 class="login-title">Sistema de Productos</h1>
+        <p class="login-subtitle">Inicia sesión para acceder a tu cuenta</p>
+
+        <form id="loginForm" action="#" method="post">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" class="form-control" id="email" name="email" placeholder="Ingresa tu email"
+                    required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Contraseña</label>
+                <input type="password" class="form-control" id="password" name="password"
+                    placeholder="Ingresa tu contraseña" required>
+            </div>
+
+            <button type="submit" class="btn">Iniciar Sesión</button>
+
+            <div id="errorMessage" class="error-message" style="display: none;">
+                Email o contraseña inválidos. Por favor intenta de nuevo.
+            </div>
+        </form>
+
+        <div class="register-link">
+            ¿No tienes una cuenta? <a href="#" id="registerLink">Registrarse</a>
+        </div>
+    </div>
+
+    <script src="/js/axios.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // console.log('🚀 DOM cargado, JavaScript iniciando...');
+            // console.log('📦 Axios disponible:', typeof axios !== 'undefined');
+
+            const loginForm = document.querySelector('#loginForm');
+            const errorMessage = document.querySelector('#errorMessage');
+            const registerLink = document.querySelector('#registerLink');
+
+            // console.log('🔍 Elementos encontrados:', {
+            //     loginForm: !!loginForm,
+            //     errorMessage: !!errorMessage,
+            //     registerLink: !!registerLink
+            // });
+
+            if (loginForm) {
+                loginForm.addEventListener('submit', async (e) => {
+                    // console.log('🎯 Evento submit capturado');
+                    e.preventDefault();
+
+                    const email = e.target.email.value;
+                    const password = e.target.password.value;
+
+                    // console.log('📝 Intentando login con:', { email, password });
+
+                    try {
+                        const response = await axios.post('/api/auth/login', {
+                            email, password
+                        });
+
+                        // console.log('✅ Respuesta del servidor:', response.data);
+
+                        localStorage.setItem('token', response.data.token);
+                        localStorage.setItem('user', JSON.stringify(response.data.user));
+
+                        // role_id 1 = ADMIN, role_id 2 = VEN
+                        if (response.data.user.role_id === 1) {
+                            // console.log('🔄 Redirigiendo a admin...');
+                            window.location.href = '/admin';
+                        } else {
+                            // console.log('🔄 Redirigiendo a profile...');
+                            window.location.href = '/profile';
+                        }
+                    } catch (error) {
+
+                        // Manejo de errores mejorado
+
+                        // Manejar diferentes tipos de errores
+                        let errorText = 'Error de conexión';
+
+                        if (error.response && error.response.data) {
+                            const data = error.response.data;
+
+                            if (typeof data === 'string') {
+                                errorText = data;
+                            } else if (data.error) {
+                                // Estructura del controlador: { error: "mensaje" }
+                                if (typeof data.error === 'string') {
+                                    errorText = data.error;
+                                } else if (data.error.message) {
+                                    // Estructura del middleware de validación: { error: { message: "...", details: [...] } }
+                                    if (data.error.details && data.error.details.length > 0) {
+                                        // Mostrar el primer error específico en lugar del mensaje genérico
+                                        const firstError = data.error.details[0];
+                                        errorText = firstError.message || data.error.message;
+                                    } else {
+                                        errorText = data.error.message;
+                                    }
+                                }
+                            } else if (data.message) {
+                                errorText = data.message;
+                            } else {
+                                // Si es un objeto, convertirlo a string legible
+                                errorText = JSON.stringify(data);
+                            }
+                        } else if (error.message) {
+                            errorText = error.message;
+                        }
+
+                        errorMessage.textContent = errorText;
+                        errorMessage.style.display = 'block';
+
+                        setTimeout(() => {
+                            errorMessage.style.display = 'none';
+                        }, 5000);
+                    }
+                });
+            } else {
+                // console.error('❌ No se encontró el formulario de login');
+            }
+
+            // Register functionality
+            if (registerLink) {
+                registerLink.addEventListener('click', async (e) => {
+                    e.preventDefault();
+
+                    const email = prompt('Ingresa tu email:');
+                    const password = prompt('Ingresa tu contraseña:');
+                    const userName = prompt('Ingresa tu nombre:');
+
+                    if (!email || !password || !userName) {
+                        alert('Todos los campos son requeridos');
+                        return;
+                    }
+
+                    try {
+                        const response = await axios.post('/api/auth/register', {
+                            email,
+                            password,
+                            user_name: userName
+                        });
+
+                        // console.log('✅ Usuario registrado:', response.data);
+                        alert('Usuario registrado exitosamente. Ahora puedes iniciar sesión.');
+
+                    } catch (error) {
+                        // console.error('❌ Error en registro:', error);
+                        alert('Error al registrar usuario: ' + (error.response?.data?.error || error.message));
+                    }
+                });
+            }
+        }); // Fin de DOMContentLoaded
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administración</title>
+    <link rel="stylesheet" href="/styles/common.css">
+    <link rel="stylesheet" href="/styles/admin.css">
+
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Panel de Administración</h1>
+        </header>
+
+        <div id="loading" class="loading">Cargando usuarios...</div>
+
+        <div id="error" class="error" style="display: none;">
+            Error al cargar usuarios. Por favor intenta nuevamente.
+        </div>
+
+        <div id="usersContainer" style="display: none;">
+            <div class="user-card">
+                <h2>Gestión de Usuarios</h2>
+
+                <div class="users-table-container">
+                    <table id="usersTable" class="users-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nombre</th>
+                                <th>Email</th>
+                                <th>Rol</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <!-- Users will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="emptyUsers" class="empty-list" style="display: none;">
+                    No se encontraron usuarios.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/axios.min.js"></script>
+    <script src="/components/navbar.js"></script>
+    <script>
+        // Insertar el navbar
+        insertNavbar();
+
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const usersContainer = document.getElementById('usersContainer');
+        const usersTableBody = document.getElementById('usersTableBody');
+        const emptyUsers = document.getElementById('emptyUsers');
+
+        const token = localStorage.getItem('token');
+
+        if (!token) {
+            window.location.href = "/login";
+        }
+
+        const getRoleName = (roleId) => {
+            switch (roleId) {
+                case 1: return 'Administrador';
+                case 2: return 'Vendedor';
+                default: return 'Usuario';
+            }
+        };
+
+        const getUsers = async () => {
+            try {
+                loading.textContent = 'Cargando usuarios...';
+                const { data } = await axios.get('/api/auth/users', {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+
+                const users = data.users || data;
+
+                if (!users || users.length === 0) {
+                    loading.style.display = 'none';
+                    emptyUsers.style.display = 'block';
+                    usersContainer.style.display = 'block';
+                    return;
+                }
+
+                // Limpiar tabla
+                usersTableBody.innerHTML = '';
+
+                users.forEach(user => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${user.uid}</td>
+                        <td>${user.user_name}</td>
+                        <td>${user.email}</td>
+                        <td><span class="role-badge role-${user.role_id}">${getRoleName(user.role_id)}</span></td>
+                        <td>
+                            ${user.role_id === 2 ?
+                            `<button class="btn btn-success btn-sm" onclick="promoteUser(${user.uid})">
+                                    Promover a Admin
+                                </button>` :
+                            '<span class="text-muted">Sin acciones</span>'
+                        }
+                        </td>
+                    `;
+                    usersTableBody.appendChild(row);
+                });
+
+                // Ocultar mensaje vacío y mostrar tabla
+                emptyUsers.style.display = 'none';
+                loading.style.display = 'none';
+                usersContainer.style.display = 'block';
+
+            } catch (error) {
+                // console.log(error);
+                loading.style.display = 'none';
+
+                if (error.response && error.response.status === 401) {
+                    alert('Tu sesión ha expirado. Por favor inicia sesión nuevamente.');
+                    localStorage.removeItem('token');
+                    window.location.href = "/login";
+                } else {
+                    document.getElementById('error').textContent = 'Error al cargar usuarios. Por favor intenta nuevamente.';
+                    document.getElementById('error').style.display = 'block';
+                }
+            }
+        };
+
+        const promoteUser = async (uid) => {
+            if (!confirm("¿Estás seguro de que quieres promover este usuario a Administrador?")) {
+                return;
+            }
+
+            try {
+                await axios.put(`/api/auth/users/${uid}/promote`, {}, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+
+                alert('Usuario promovido exitosamente');
+                getUsers(); // Recargar la lista
+            } catch (error) {
+                // console.log(error);
+                alert('Error al promover usuario');
+            }
+        };
+
+        getUsers();
+    </script>
+</body>
+
+</html>
